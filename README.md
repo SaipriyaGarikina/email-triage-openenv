@@ -1,4 +1,21 @@
-# 📧 Email Triage OpenEnv  v2
+---
+title: Email Triage OpenEnv
+emoji: 📧
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+tags:
+  - openenv
+  - email-triage
+  - nlp
+  - classification
+  - rl-environment
+license: mit
+short_description: Real-world OpenEnv environment for AI email triage agent training
+---
+
+# 📧 Email Triage OpenEnv  
 
 > **A production-ready OpenEnv environment** where AI agents learn to read, classify, prioritize, and route real-world business emails — just like a human operations team does every day.
 
@@ -42,32 +59,6 @@ This environment is deliberately designed to **require reasoning**, not just key
 - A data breach email might sound like a "support" issue — but it is **legal + urgent**
 - A "partnership opportunity" email might look like spam — but it is **sales + high priority**
 - A friendly "can you do a report for me?" email is **support + low priority**, not sales
-
----
-
-## 📁 Project Structure
-
-```
-email_triage_env/
-│── openenv.yaml              ← OpenEnv spec metadata
-│── README.md                 ← This file
-│── HF_README.md              ← Hugging Face Spaces deployment guide
-│── requirements.txt          ← Python dependencies (pinned versions)
-│── Dockerfile                ← Docker container (port 7860)
-│── validate.sh               ← Shell script to validate all endpoints
-│── app/
-│   │── __init__.py
-│   │── main.py               ← FastAPI app — all endpoints (session-aware)
-│   │── env.py                ← Core environment: reset / step / state
-│   │── models.py             ← All Pydantic models (fully typed)
-│   │── tasks.py              ← 3 tasks, 15 real emails, ground truth
-│   │── graders.py            ← Deterministic graders (F1, weighted)
-│   │── reward.py             ← Rich reward: 5 bonuses (sentiment/SLA/escalation) + 5 penalty types
-│── scripts/
-│   │── baseline.py           ← GPT-4o-mini baseline agent
-│── tests/
-│   │── test_env.py           ← 55 unit tests (all passing ✅)
-```
 
 ---
 
