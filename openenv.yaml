@@ -1,0 +1,94 @@
+name: email-triage-env
+version: "2.0.0"
+description: >
+  A real-world email triage environment where an AI agent reads incoming
+  emails and must classify, prioritize, tag, and route them correctly.
+  Simulates a real customer support / inbox management workflow.
+
+author: "OpenEnv Project"
+license: MIT
+
+tags:
+  - openenv
+  - email-triage
+  - nlp
+  - classification
+  - real-world
+  - sequential
+
+environment:
+  id: email-triage-v2
+  type: sequential
+  observation_type: structured
+  action_type: structured
+  max_steps: 20
+  reward_range: [0.0, 1.0]
+
+tasks:
+  - id: easy_triage
+    name: "Easy Email Triage"
+    difficulty: easy
+    description: >
+      Classify 3 simple emails into correct categories (spam, support, billing).
+      Emails are clearly worded. No ambiguity.
+    max_steps: 10
+    pass_threshold: 0.8
+
+  - id: medium_triage
+    name: "Medium Email Triage + Priority"
+    difficulty: medium
+    description: >
+      Classify 5 emails AND assign priority (low, medium, high, urgent).
+      Some emails are ambiguous. Requires reasoning.
+    max_steps: 15
+    pass_threshold: 0.75
+
+  - id: hard_triage
+    name: "Hard Email Triage + Route + Tag"
+    difficulty: hard
+    description: >
+      Classify 10 adversarial emails, assign priority, tag with topic labels,
+      and route to the correct team. Includes deceptive cases: billing disguised
+      as support, sales with legal blockers, and sophisticated phishing.
+      Requires full contextual and sentiment reasoning.
+    max_steps: 25
+    pass_threshold: 0.65
+
+observation_space:
+  type: object
+  fields:
+    - email_id: string
+    - subject: string
+    - body: string
+    - sender: string
+    - timestamp: string
+    - step: integer
+    - total_steps: integer
+    - task_id: string
+    - history: list
+    - done: boolean
+    - message: string
+    - sla_hours_remaining: float | null  # estimated hours until SLA deadline; null if none detected
+
+action_space:
+  type: object
+  fields:
+    - email_id: string
+    - category: enum [spam, support, billing, sales, hr, legal, general]
+    - priority: enum [low, medium, high, urgent]
+    - tags: list[string]
+    - route_to: enum [sales_team, tech_team, billing_team, hr_team, legal_team, trash, inbox]
+    - notes: string
+
+endpoints:
+  reset: POST /reset
+  step: POST /step
+  state: GET /state
+  tasks: GET /tasks
+  grader: POST /grader
+  baseline: POST /baseline
+
+deployment:
+  docker: true
+  huggingface_spaces: true
+  port: 7860
