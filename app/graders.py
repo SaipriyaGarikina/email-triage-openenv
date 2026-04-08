@@ -61,11 +61,12 @@ def _score_priority(predicted: Priority, expected: Priority) -> float:
     """
     diff = abs(PRIORITY_ORDER[predicted] - PRIORITY_ORDER[expected])
     if diff == 0:
-        return 1.0
+        return 0.99
     elif diff == 1:
         return 0.5
     else:
-        return 0.0
+        return 0.01
+        
 
 
 def _score_tags(predicted_tags: list[str], expected_tags: list[str]) -> float:
@@ -77,7 +78,7 @@ def _score_tags(predicted_tags: list[str], expected_tags: list[str]) -> float:
     if not expected_tags:
         # No tags expected — penalize only if agent gave wrong tags
         if not predicted_tags:
-            return 1.0
+            return 0.99
         else:
             return 0.5  # agent gave extra tags when none needed
 
@@ -85,16 +86,17 @@ def _score_tags(predicted_tags: list[str], expected_tags: list[str]) -> float:
     exp_set = {t.lower().strip() for t in expected_tags}
 
     if not pred_set:
-        return 0.0
+        return 0.01
 
     true_positives = len(pred_set & exp_set)
     precision = true_positives / len(pred_set) if pred_set else 0.0
     recall = true_positives / len(exp_set) if exp_set else 0.0
 
     if precision + recall == 0:
-        return 0.0
+        return 0.01
 
     f1 = 2 * precision * recall / (precision + recall)
+    f1 = max(0.01, min(0.99, f1))
     return round(f1, 4)
 
 
@@ -126,13 +128,13 @@ def grade_single_action(
     weights = WEIGHTS[task_id]
 
     # --- Category score ---
-    cat_score = 1.0 if action.category == gt["category"] else 0.0
+    cat_score = 0.99 if action.category == gt["category"] else 0.01
 
     # --- Priority score (with partial credit) ---
     pri_score = _score_priority(action.priority, gt["priority"])
 
     # --- Route score ---
-    route_score = 1.0 if action.route_to == gt["route_to"] else 0.0
+    route_score = 0.99 if action.route_to == gt["route_to"] else 0.01
 
     # --- Tags score ---
     tag_score = _score_tags(action.tags, gt.get("tags", []))
@@ -149,7 +151,7 @@ def grade_single_action(
 
     breakdown = {
         "category": round(cat_score, 4),
-        "priority": round(pri_score, 4),
+        "priority": max(0.01, min(0.99, round(pri_score, 4))),
         "route": round(route_score, 4),
         "tags": round(tag_score, 4),
     }
