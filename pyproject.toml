@@ -1,20 +1,13 @@
 [project]
 name = "email-triage-openenv"
 version = "2.0.0"
-description = "OpenEnv email triage environment"
-authors = [
-  { name = "Sai Priya Garikina" }
-]
-requires-python = ">=3.10"
-
+description = "Email triage OpenEnv environment"
 dependencies = [
-  "fastapi",
-  "uvicorn",
-  "pydantic",
-  "openai",
-  "requests"
+    "openenv>=0.2.0",
+    "fastapi",
+    "uvicorn",
+    "pydantic"
 ]
 
-[tool.openenv]
-entrypoint_api = "app.main:app"
-entrypoint_inference = "inference.py"
+[project.scripts]
+server = "server.app:app"
