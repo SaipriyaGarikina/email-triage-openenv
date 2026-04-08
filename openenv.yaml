@@ -4,6 +4,9 @@ description: >
   A real-world email triage environment where an AI agent reads incoming
   emails and must classify, prioritize, tag, and route them correctly.
   Simulates a real customer support / inbox management workflow.
+entrypoint:
+  api: app.main:app
+  inference: inference.py
 
 author: "OpenEnv Project"
 license: MIT
