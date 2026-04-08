@@ -198,7 +198,7 @@ class EmailTriageEnv:
 
         cumulative = round(
             sum(self._cumulative_scores) / len(self._cumulative_scores), 4
-        ) if self._cumulative_scores else 0.0
+        ) if self._cumulative_scores else 0.01
 
         if all_processed or over_limit:
             self._done = True
@@ -228,7 +228,7 @@ class EmailTriageEnv:
             raise RuntimeError("Environment not initialized. Call reset() first.")
         cumulative = (
             round(sum(self._cumulative_scores) / len(self._cumulative_scores), 4)
-            if self._cumulative_scores else 0.0
+            if self._cumulative_scores else 0.01
         )
         return EpisodeState(
             task_id=self._task_id,
