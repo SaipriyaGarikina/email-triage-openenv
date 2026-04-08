@@ -117,7 +117,7 @@ def grade_single_action(
     ground_truth = task["ground_truth"]
     if action.email_id not in ground_truth:
         return {
-            "step_score": 0.0,
+            "step_score": 0.01,
             "breakdown": {},
             "feedback": f"Email ID '{action.email_id}' not found in task '{task_id}'.",
         }
@@ -144,7 +144,8 @@ def grade_single_action(
         + weights["route"] * route_score
         + weights["tags"] * tag_score
     )
-    total = round(min(max(total, 0.0), 1.0), 4)
+    total = max(0.01, min(0.99, total))
+    total = round(total, 4)
 
     breakdown = {
         "category": round(cat_score, 4),
@@ -224,11 +225,11 @@ def grade_full_episode(
             # Duplicate action penalty: score 0 for re-processed email
             per_email_scores.append({
                 "email_id": action.email_id,
-                "step_score": 0.0,
+                "step_score": 0.01,
                 "breakdown": {},
                 "feedback": f"⚠️ Duplicate action for email '{action.email_id}'. Score penalized to 0.",
             })
-            scores.append(0.0)
+            scores.append(0.01)
         else:
             result = grade_single_action(task_id, action)
             per_email_scores.append(result)
@@ -241,13 +242,15 @@ def grade_full_episode(
     for missing_id in missing_ids:
         per_email_scores.append({
             "email_id": missing_id,
-            "step_score": 0.0,
+            "step_score": 0.01,
             "breakdown": {},
             "feedback": f"❌ Email '{missing_id}' was never processed. Score: 0.",
         })
-        scores.append(0.0)
+        scores.append(0.01)
 
-    total_score = round(sum(scores) / len(scores), 4) if scores else 0.0
+    total_score = (sum(scores) / len(scores)) if scores else 0.01
+    total_score = max(0.01, min(0.99, total_score))
+    total_score = round(total_score, 4)
     passed = total_score >= pass_threshold
 
     feedback = (
@@ -264,3 +267,4 @@ def grade_full_episode(
         "passed": passed,
         "feedback": feedback,
     }
+
