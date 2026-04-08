@@ -61,11 +61,11 @@ def _score_priority(predicted: Priority, expected: Priority) -> float:
     """
     diff = abs(PRIORITY_ORDER[predicted] - PRIORITY_ORDER[expected])
     if diff == 0:
-        return 0.99
+        return 0.98
     elif diff == 1:
-        return 0.5
+        return 0.49
     else:
-        return 0.01
+        return 0.02
         
 
 
@@ -78,26 +78,27 @@ def _score_tags(predicted_tags: list[str], expected_tags: list[str]) -> float:
     if not expected_tags:
         # No tags expected — penalize only if agent gave wrong tags
         if not predicted_tags:
-            return 0.99
+            return 0.98
         else:
-            return 0.5  # agent gave extra tags when none needed
+            return 0.49  # agent gave extra tags when none needed
 
     pred_set = {t.lower().strip() for t in predicted_tags}
     exp_set = {t.lower().strip() for t in expected_tags}
 
     if not pred_set:
-        return 0.01
+        return 0.02
 
     true_positives = len(pred_set & exp_set)
     precision = true_positives / len(pred_set) if pred_set else 0.0
     recall = true_positives / len(exp_set) if exp_set else 0.0
 
     if precision + recall == 0:
-        return 0.01
+        return 0.02
 
     f1 = 2 * precision * recall / (precision + recall)
-    f1 = max(0.01, min(0.99, f1))
-    return round(f1, 4)
+    f1 = round(f1, 4)
+    f1 = max(0.02, min(0.98, f1))
+    return f1
 
 
 def grade_single_action(
@@ -119,7 +120,7 @@ def grade_single_action(
     ground_truth = task["ground_truth"]
     if action.email_id not in ground_truth:
         return {
-            "step_score": 0.01,
+            "step_score": 0.02,
             "breakdown": {},
             "feedback": f"Email ID '{action.email_id}' not found in task '{task_id}'.",
         }
@@ -128,13 +129,13 @@ def grade_single_action(
     weights = WEIGHTS[task_id]
 
     # --- Category score ---
-    cat_score = 0.99 if action.category == gt["category"] else 0.01
+    cat_score = 0.98 if action.category == gt["category"] else 0.02
 
     # --- Priority score (with partial credit) ---
     pri_score = _score_priority(action.priority, gt["priority"])
 
     # --- Route score ---
-    route_score = 0.99 if action.route_to == gt["route_to"] else 0.01
+    route_score = 0.98 if action.route_to == gt["route_to"] else 0.02
 
     # --- Tags score ---
     tag_score = _score_tags(action.tags, gt.get("tags", []))
@@ -146,28 +147,29 @@ def grade_single_action(
         + weights["route"] * route_score
         + weights["tags"] * tag_score
     )
-    total = max(0.01, min(0.99, total))
     total = round(total, 4)
+    total = max(0.02, min(0.98, total))
 
     breakdown = {
-        "category": round(cat_score, 4),
-        "priority": max(0.01, min(0.99, round(pri_score, 4))),
-        "route": round(route_score, 4),
-        "tags": round(tag_score, 4),
+        
+        "category": max(0.02, min(0.98, round(cat_score, 4))),
+        "priority": max(0.02, min(0.98, round(pri_score, 4))),
+        "route": max(0.02, min(0.98, round(route_score, 4))),
+        "tags": max(0.02, min(0.98, round(tag_score, 4))),
     }
 
     # --- Human feedback ---
     feedback_parts = []
-    if cat_score == 1.0:
+    if cat_score >= 0.98:
         feedback_parts.append(f"✅ Category '{action.category}' is correct.")
     else:
         feedback_parts.append(
             f"❌ Category '{action.category}' is wrong. Expected: '{gt['category']}'."
         )
 
-    if pri_score == 1.0:
+    if pri_score >= 0.98:
         feedback_parts.append(f"✅ Priority '{action.priority}' is correct.")
-    elif pri_score == 0.5:
+    elif pri_score == 0.49:
         feedback_parts.append(
             f"⚠️  Priority '{action.priority}' is close (partial credit). "
             f"Expected: '{gt['priority']}'."
@@ -177,7 +179,7 @@ def grade_single_action(
             f"❌ Priority '{action.priority}' is wrong. Expected: '{gt['priority']}'."
         )
 
-    if route_score == 1.0:
+    if route_score >= 0.98:
         feedback_parts.append(f"✅ Route '{action.route_to}' is correct.")
     else:
         feedback_parts.append(
@@ -185,7 +187,7 @@ def grade_single_action(
         )
 
     if weights["tags"] > 0:
-        feedback_parts.append(f"Tags F1 score: {tag_score:.2f}.")
+        feedback_parts.append(f"Tags F1 score: {tag_score:.4f}.")
 
     feedback = " ".join(feedback_parts)
 
@@ -227,11 +229,11 @@ def grade_full_episode(
             # Duplicate action penalty: score 0 for re-processed email
             per_email_scores.append({
                 "email_id": action.email_id,
-                "step_score": 0.01,
+                "step_score": 0.02,
                 "breakdown": {},
                 "feedback": f"⚠️ Duplicate action for email '{action.email_id}'. Score penalized to 0.",
             })
-            scores.append(0.01)
+            scores.append(0.02)
         else:
             result = grade_single_action(task_id, action)
             per_email_scores.append(result)
@@ -244,20 +246,20 @@ def grade_full_episode(
     for missing_id in missing_ids:
         per_email_scores.append({
             "email_id": missing_id,
-            "step_score": 0.01,
+            "step_score": 0.02,
             "breakdown": {},
             "feedback": f"❌ Email '{missing_id}' was never processed. Score: 0.",
         })
-        scores.append(0.01)
+        scores.append(0.02)
 
-    total_score = (sum(scores) / len(scores)) if scores else 0.01
-    total_score = max(0.01, min(0.99, total_score))
+    total_score = (sum(scores) / len(scores)) if scores else 0.02
     total_score = round(total_score, 4)
+    total_score = max(0.02, min(0.98, total_score))
     passed = total_score >= pass_threshold
 
     feedback = (
         f"Task '{task_id}' completed. "
-        f"Total score: {total_score:.4f} / 1.0. "
+        f"Total score: {total_score:.4f} / 0.98"
         f"Pass threshold: {pass_threshold}. "
         f"{'✅ PASSED' if passed else '❌ FAILED'}."
     )
