@@ -1,38 +1,30 @@
 """
-reward.py  (v3 — Enhanced)
+reward.py  
 --------------------------
 Rich, multi-dimensional reward function with sentiment, SLA urgency,
 and escalation signals on top of the base grader score.
-
 Base score uses task-specific weights (graders.WEIGHTS — single source of truth):
   easy_triage   : category=0.50, priority=0.25, route=0.25, tags=0.00
   medium_triage : category=0.35, priority=0.35, route=0.20, tags=0.10
   hard_triage   : category=0.25, priority=0.25, route=0.25, tags=0.25
-
 ENHANCEMENTS in v3:
-  Sentiment signal   — negative sentiment in email body boosts priority-accuracy reward:
-                        if customer is angry/frustrated AND agent assigned high/urgent → +0.03
-  SLA urgency signal — explicit time pressure in email (hours/deadline/EOD) AND agent
-                        correctly assigned urgent/high → +0.03
-  Escalation signal  — email contains escalation language (bank/lawyer/regulator)
-                        AND agent assigned high/urgent priority → +0.03
-  These bonuses reward the agent for picking up on real-world signals, not just keywords.
-
-All bonuses (including existing speed/tag bonuses):
+  Sentiment signal   — negative sentiment in email body boosts priority-accuracy reward
+  SLA urgency signal — explicit time pressure AND agent correctly assigned urgent/high → +0.03
+  Escalation signal  — escalation language AND agent assigned high/urgent priority → +0.03
+All bonuses:
   +0.05  speed bonus  (correct in first half of episode)
   +0.05  extra-tag bonus
   +0.03  sentiment-aware priority bonus
   +0.03  SLA-aware priority bonus
   +0.03  escalation-aware priority bonus
-
-All penalties (unchanged):
+All penalties:
   -0.30  invalid email ID
   -0.20  duplicate action
   -0.10  over step limit
   -0.05  empty tags on hard task
   -0.05  contradictory routing
-
-All scores clamped to [0.0, 1.0].
+  -0.10  SLA breach
+All scores STRICTLY within (0.01, 0.99) — never exactly 0.0 or 1.0.
 """
 
 from __future__ import annotations
@@ -41,26 +33,38 @@ from app.models import Action, Category, RouteTarget, Priority, Reward
 from app.graders import grade_single_action
 
 # ---------------------------------------------------------------------------
+# Sentinel values — strictly inside (0, 1) — matches graders.py
+# ---------------------------------------------------------------------------
+_MIN_SCORE = 0.01
+_MAX_SCORE = 0.99
+
+
+def _clamp(value: float) -> float:
+    """Clamp to strictly (0, 1) — never exactly 0.0 or 1.0."""
+    return max(_MIN_SCORE, min(_MAX_SCORE, value))
+
+
+# ---------------------------------------------------------------------------
 # Penalty constants
 # ---------------------------------------------------------------------------
 PENALTY_INVALID_EMAIL_ID    = 0.30
 PENALTY_DUPLICATE_ACTION    = 0.20
-PENALTY_OVER_STEPS          = 0.10   # loop protection: agent exceeded max_steps
+PENALTY_OVER_STEPS          = 0.10
 PENALTY_EMPTY_TAGS          = 0.05
 PENALTY_CONTRADICTORY_ROUTE = 0.05
-PENALTY_SLA_BREACH          = 0.10   # agent assigned LOW/MEDIUM despite sla_hours_remaining < 2
+PENALTY_SLA_BREACH          = 0.10
 
 # ---------------------------------------------------------------------------
 # Bonus constants
 # ---------------------------------------------------------------------------
 BONUS_SPEED          = 0.05
 BONUS_EXTRA_TAG      = 0.05
-BONUS_SENTIMENT      = 0.03   # agent detects negative sentiment → correct high/urgent priority
-BONUS_SLA            = 0.03   # agent detects time deadline → correct high/urgent priority
-BONUS_ESCALATION     = 0.03   # agent detects escalation language → correct high/urgent priority
+BONUS_SENTIMENT      = 0.03
+BONUS_SLA            = 0.03
+BONUS_ESCALATION     = 0.03
 
 # ---------------------------------------------------------------------------
-# Sentiment signals — words that indicate customer frustration/anger
+# Sentiment signals
 # ---------------------------------------------------------------------------
 SENTIMENT_NEGATIVE = {
     "frustrated", "angry", "furious", "unacceptable", "disappointed",
@@ -70,7 +74,7 @@ SENTIMENT_NEGATIVE = {
 }
 
 # ---------------------------------------------------------------------------
-# SLA / urgency signals — explicit time pressure in email body
+# SLA / urgency signals
 # ---------------------------------------------------------------------------
 SLA_SIGNALS = {
     "within 24 hours", "within 72 hours", "by eod", "end of day",
@@ -81,7 +85,7 @@ SLA_SIGNALS = {
 }
 
 # ---------------------------------------------------------------------------
-# Escalation signals — customer threatening to take action elsewhere
+# Escalation signals
 # ---------------------------------------------------------------------------
 ESCALATION_SIGNALS = {
     "escalate to my bank", "charge back", "chargeback", "contact my lawyer",
@@ -128,24 +132,15 @@ def compute_reward(
 ) -> Reward:
     """
     Compute a rich Reward for a single step action.
-
-    Base score from graders.grade_single_action() (task-specific weights).
-    Bonuses for sentiment-aware, SLA-aware, escalation-aware priority decisions.
-    Penalties for invalid IDs, duplicates, contradictory routing.
-
-    Loop protection: PENALTY_OVER_STEPS applied when step >= max_steps,
-    and _done=True is set by env.step() at the same boundary — agents cannot
-    run forever by spamming steps past the episode limit.
-
-    SLA breach penalty: if sla_hours_remaining < 2 and agent assigns LOW or MEDIUM
-    priority, a -0.10 penalty is applied to discourage ignoring explicit urgency signals.
+    All step_score and cumulative_score values are STRICTLY within (0, 1).
+    Never exactly 0.0 or 1.0 — uses _MIN_SCORE=0.01 and _MAX_SCORE=0.99.
     """
     total_penalty = 0.0
     total_bonus   = 0.0
     feedback_parts: list[str] = []
 
     # ------------------------------------------------------------------
-    # PENALTY 1: Invalid email ID — immediate zero, early return
+    # PENALTY 1: Invalid email ID — immediate min score, early return
     # ------------------------------------------------------------------
     if action.email_id not in valid_email_ids:
         total_penalty += PENALTY_INVALID_EMAIL_ID
@@ -153,11 +148,13 @@ def compute_reward(
             f"❌ PENALTY -{PENALTY_INVALID_EMAIL_ID}: "
             f"Email ID '{action.email_id}' does not exist in task '{task_id}'."
         )
-        step_score = 0.0
+        # FIX: Use _MIN_SCORE (0.01) instead of 0.0 — never return exactly 0.0
+        step_score = _MIN_SCORE
         all_scores = cumulative_scores + [step_score]
+        cumulative = _clamp(round(sum(all_scores) / len(all_scores), 4))
         return Reward(
             step_score=step_score,
-            cumulative_score=round(sum(all_scores) / len(all_scores), 4),
+            cumulative_score=cumulative,
             penalty=round(total_penalty, 4),
             breakdown={},
             feedback=" ".join(feedback_parts),
@@ -194,10 +191,7 @@ def compute_reward(
         )
 
     # ------------------------------------------------------------------
-    # PENALTY 5: SLA breach — explicit deadline ignored
-    # If the email has a short SLA window (< 2h) and the agent assigned
-    # LOW or MEDIUM priority, that is a real-world failure: the customer
-    # will miss their deadline because the ticket wasn't escalated in time.
+    # PENALTY 5: SLA breach
     # ------------------------------------------------------------------
     _LOW_PRIORITY = {Priority.LOW, Priority.MEDIUM}
     if (
@@ -218,7 +212,7 @@ def compute_reward(
     # ------------------------------------------------------------------
     if not is_duplicate:
         graded    = grade_single_action(task_id, action)
-        raw_score = graded["step_score"]
+        raw_score = graded["step_score"]  # already in (0.01, 0.99) from graders.py
         breakdown = graded["breakdown"]
         grader_fb = graded["feedback"]
 
@@ -232,7 +226,7 @@ def compute_reward(
         )
         email_body = (email_obj.body + " " + email_obj.subject) if email_obj else ""
 
-        # PENALTY 5: Empty tags on hard task
+        # PENALTY: Empty tags on hard task
         if task_id == "hard_triage" and not action.tags:
             total_penalty += PENALTY_EMPTY_TAGS
             feedback_parts.append(
@@ -258,8 +252,6 @@ def compute_reward(
                 )
 
         # BONUS 3: Sentiment-aware priority
-        # Agent gets bonus for assigning high/urgent when email contains negative sentiment
-        # AND the ground truth priority is also high/urgent (agent picked up on the right signal)
         gt_priority = gt_email.get("priority")
         if (
             _text_contains_any(email_body, SENTIMENT_NEGATIVE)
@@ -294,14 +286,17 @@ def compute_reward(
             )
 
     else:
-        raw_score = 0.0
+        # FIX: Use _MIN_SCORE (0.01) instead of 0.0 for duplicate raw_score
+        raw_score = _MIN_SCORE
         breakdown = {}
         grader_fb = "No grading (duplicate action)."
 
     # ------------------------------------------------------------------
-    # Final score = raw - penalties + bonuses, clamped [0.0, 1.0]
+    # Final score: raw - penalties + bonuses
+    # FIX: Clamp using _clamp() → strictly (0.01, 0.99), never 0.0 or 1.0
     # ------------------------------------------------------------------
-    step_score = round(min(1.0, max(0.0, raw_score - total_penalty + total_bonus)), 4)
+    raw_final  = raw_score - total_penalty + total_bonus
+    step_score = _clamp(round(raw_final, 4))
 
     feedback_parts.insert(0, grader_fb)
     if total_penalty > 0:
@@ -311,7 +306,7 @@ def compute_reward(
     feedback_parts.append(f"| Final step score: {step_score:.4f}")
 
     all_scores = cumulative_scores + [step_score]
-    cumulative = round(sum(all_scores) / len(all_scores), 4)
+    cumulative = _clamp(round(sum(all_scores) / len(all_scores), 4))
 
     return Reward(
         step_score=step_score,
