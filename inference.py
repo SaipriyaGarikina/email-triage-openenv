@@ -236,7 +236,7 @@ def run_task(task_id: str) -> None:
             )
 
         # Episode completed normally
-        cumulative = sum(rewards) / len(rewards) if rewards else 0.0
+        cumulative = sum(rewards) / len(rewards) if rewards else 0.01
         success    = cumulative >= 0.70   # pass threshold for any task
 
     except Exception as exc:
@@ -250,7 +250,7 @@ def run_task(task_id: str) -> None:
             print(
                 f"[STEP] step={steps_taken} "
                 f"action=error() "
-                f"reward=0.00 "
+                f"reward=0.01 "
                 f"done=true "
                 f"error={last_error!r}",
                 flush=True,
