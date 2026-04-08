@@ -72,7 +72,7 @@ app = FastAPI(
 
 from fastapi import Request
 
-@app.post("/reset", response_model=ResetResponse, tags=["Environment"])
+@app.post("/reset", tags=["Environment"])
 async def reset(
     request: Request,
     session_id: Optional[str] = Query(default=None),
@@ -80,30 +80,28 @@ async def reset(
     try:
         sid, env = get_or_create_session(session_id)
 
-        # Default task
         task_id = "easy_triage"
 
-        # Try reading body safely
+        # Safely read body (even if empty / no content-type)
         try:
             body = await request.json()
-            if body and "task_id" in body:
+            if isinstance(body, dict) and "task_id" in body:
                 task_id = body["task_id"]
         except:
-            pass  # No body provided → OK
+            pass
 
         observation = env.reset(task_id)
+        task_info = get_task(task_id)["info"]
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return {
+            "session_id": sid,
+            "observation": observation,
+            "task_info": task_info,
+            "message": f"Session '{sid}' reset for task '{task_id}'."
+        }
 
-    task_info = get_task(task_id)["info"]
-
-    return ResetResponse(
-        session_id=sid,
-        observation=observation,
-        task_info=task_info,
-        message=f"Session '{sid}' reset for task '{task_id}'.",
-    )
+    except Exception as e:
+        return {"error": str(e)}
 
 # ---------------------------------------------------------------------------
 # POST /step
