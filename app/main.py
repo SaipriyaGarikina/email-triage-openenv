@@ -1,5 +1,5 @@
 """
-main.py  (v2 — Fixed)
+main.py  
 ----------------------
 FastAPI application with full session-based multi-user support.
 
@@ -55,7 +55,7 @@ from app.graders import grade_full_episode
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
-    title="Email Triage OpenEnv  v2",
+    title="Email Triage OpenEnv",
     description=(
         "Production-ready OpenEnv environment simulating AI email triage. "
         "Multi-session, session-safe. "
@@ -70,33 +70,40 @@ app = FastAPI(
 # POST /reset
 # ---------------------------------------------------------------------------
 
+from fastapi import Request
+
 @app.post("/reset", response_model=ResetResponse, tags=["Environment"])
-def reset(
-    request: ResetRequest,
-    session_id: Optional[str] = Query(default=None, description="Reuse an existing session or leave blank to create new"),
+async def reset(
+    request: Request,
+    session_id: Optional[str] = Query(default=None),
 ):
-    """
-    Reset environment and start a new episode.
-
-    Returns a **session_id** — pass this as a query param to all subsequent /step and /state calls.
-
-    task_id options: easy_triage | medium_triage | hard_triage
-    """
     try:
         sid, env = get_or_create_session(session_id)
-        observation = env.reset(request.task_id)
+
+        # Default task
+        task_id = "easy_triage"
+
+        # Try reading body safely
+        try:
+            body = await request.json()
+            if body and "task_id" in body:
+                task_id = body["task_id"]
+        except:
+            pass  # No body provided → OK
+
+        observation = env.reset(task_id)
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    task_info = get_task(request.task_id)["info"]
-    # FIX #4: session_id is a top-level structured field
+    task_info = get_task(task_id)["info"]
+
     return ResetResponse(
         session_id=sid,
         observation=observation,
         task_info=task_info,
-        message=f"Session '{sid}' reset for task '{request.task_id}'. Use session_id in /step and /state.",
+        message=f"Session '{sid}' reset for task '{task_id}'.",
     )
-
 
 # ---------------------------------------------------------------------------
 # POST /step
