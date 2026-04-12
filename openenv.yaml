@@ -25,7 +25,7 @@ environment:
   observation_type: structured
   action_type: structured
   max_steps: 20
-  reward_range: [0.0, 1.0]
+  reward_range: [0.01, 0.99]
 
 tasks:
   - id: easy_triage
@@ -35,7 +35,7 @@ tasks:
       Classify 3 simple emails into correct categories (spam, support, billing).
       Emails are clearly worded. No ambiguity.
     max_steps: 10
-    pass_threshold: 0.8
+    pass_threshold: 0.80
 
   - id: medium_triage
     name: "Medium Email Triage + Priority"
@@ -71,7 +71,7 @@ observation_space:
     - history: list
     - done: boolean
     - message: string
-    - sla_hours_remaining: float | null  # estimated hours until SLA deadline; null if none detected
+    - sla_hours_remaining: float | null
 
 action_space:
   type: object
