@@ -1,8 +1,8 @@
 """
 models.py — Final Fixed Version
-ALL numeric fields have explicit json_schema_extra examples with non-zero values.
-FastAPI uses these examples in OpenAPI schema generation.
-The validator reads these schema examples and rejects 0, 0.0, or 1.0.
+ALL numeric fields have explicit non-zero examples.
+breakdown dict uses model_config to set example values.
+penalty field has example=0.05 (not 0).
 """
 
 from __future__ import annotations
@@ -79,7 +79,7 @@ class Email(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Observation — ALL numeric fields have non-zero examples
+# Observation
 # ---------------------------------------------------------------------------
 
 class Observation(BaseModel):
@@ -115,12 +115,29 @@ class Action(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Reward — ALL float score fields have example=0.5
-# No gt/lt constraints — those cause ValidationError crashes on 0.0 input.
-# field_validator clamps silently before storage.
+# Reward
+# ALL float fields have non-zero examples.
+# breakdown uses model_config json_schema_extra to override the dict example.
 # ---------------------------------------------------------------------------
 
 class Reward(BaseModel):
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "step_score": 0.5,
+                "cumulative_score": 0.5,
+                "penalty": 0.05,
+                "breakdown": {
+                    "category": 0.99,
+                    "priority": 0.49,
+                    "route": 0.99,
+                    "tags": 0.5,
+                },
+                "feedback": "✅ Category correct. ⚠️ Priority close."
+            }
+        }
+    }
+
     step_score: float = Field(
         ...,
         description="Score for this step, strictly in (0, 1)",
@@ -133,11 +150,17 @@ class Reward(BaseModel):
     )
     penalty: float = Field(
         default=0.0,
-        description="Penalty applied",
+        description="Penalty applied (deduction amount)",
         json_schema_extra={"example": 0.05},
     )
-    breakdown: dict[str, float] = Field(default_factory=dict)
-    feedback:  str              = Field(default="")
+    breakdown: dict[str, float] = Field(
+        default_factory=dict,
+        description="Per-dimension scores",
+        json_schema_extra={
+            "example": {"category": 0.99, "priority": 0.49, "route": 0.99, "tags": 0.5}
+        },
+    )
+    feedback: str = Field(default="", description="Human-readable feedback")
 
     @field_validator('step_score', 'cumulative_score', mode='before')
     @classmethod
@@ -146,7 +169,7 @@ class Reward(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# TaskInfo — pass_threshold and all int fields have non-zero examples
+# TaskInfo
 # ---------------------------------------------------------------------------
 
 class TaskInfo(BaseModel):
@@ -164,7 +187,7 @@ class TaskInfo(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# EpisodeState — all numeric fields with non-zero examples
+# EpisodeState
 # ---------------------------------------------------------------------------
 
 class EpisodeState(BaseModel):
@@ -237,7 +260,7 @@ class GraderRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# GraderResponse — total_score has example=0.5 AND field_validator clamp
+# GraderResponse
 # ---------------------------------------------------------------------------
 
 class GraderResponse(BaseModel):
@@ -247,9 +270,15 @@ class GraderResponse(BaseModel):
         description="Episode total score, strictly in (0, 1)",
         json_schema_extra={"example": 0.5},
     )
-    per_email_scores: list[dict[str, Any]]
-    passed:           bool
-    feedback:         str
+    per_email_scores: list[dict[str, Any]] = Field(
+        ...,
+        description="Per-email grading results",
+        json_schema_extra={
+            "example": [{"email_id": "easy_001", "step_score": 0.5, "breakdown": {}, "feedback": ""}]
+        },
+    )
+    passed:   bool
+    feedback: str
 
     @field_validator('total_score', mode='before')
     @classmethod
