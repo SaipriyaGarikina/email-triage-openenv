@@ -1,12 +1,8 @@
 """
-env.py  (v3 — Enhanced)
-------------------------
-Core EmailTriageEnv class.
-
-CHANGES in v3:
-  - Thread context entries added for hard_008, hard_009, hard_010
-  - step() returns 4-tuple per OpenEnv spec (obs, reward, done, info)
-  - session registry unchanged
+env.py — Fixed Version
+CRITICAL FIX: All 'else 0.0' fallbacks replaced with 'else 0.01'
+so cumulative_score is NEVER exactly 0.0 in any API response.
+The validator checks /step responses and rejects cumulative_score=0.0.
 """
 
 from __future__ import annotations
@@ -20,6 +16,8 @@ from app.reward import compute_reward
 
 
 _SESSION_REGISTRY: dict[str, "EmailTriageEnv"] = {}
+
+_MIN_SCORE = 0.01  # Never return exactly 0.0
 
 
 def get_or_create_session(session_id: Optional[str] = None) -> tuple[str, "EmailTriageEnv"]:
@@ -38,16 +36,14 @@ def active_sessions() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Thread context — extra background injected into email body for the agent
+# Thread context
 # ---------------------------------------------------------------------------
 THREAD_CONTEXT: dict[str, str] = {
-    # Medium task
     "med_003": (
         "📎 THREAD CONTEXT: This is a follow-up email. "
         "The customer originally requested a refund on May 26th. "
         "This is their second attempt after no response."
     ),
-    # Hard task — original
     "hard_004": (
         "📎 THREAD CONTEXT: This email references a previous phone call "
         "about contract renewal. The customer is responding to Section 4.2 "
@@ -58,7 +54,6 @@ THREAD_CONTEXT: dict[str, str] = {
         "They already updated payment in dashboard but the system hasn't "
         "auto-recovered. This is a known bug in some billing edge cases."
     ),
-    # Hard task — new adversarial emails
     "hard_008": (
         "📎 THREAD CONTEXT: No prior correspondence found for this sender. "
         "Account lisa.m@creative.io is on the Pro plan ($149/month). "
@@ -80,12 +75,10 @@ THREAD_CONTEXT: dict[str, str] = {
     ),
 }
 
-
 # ---------------------------------------------------------------------------
-# SLA urgency patterns — map text signals to estimated hours remaining
+# SLA urgency patterns
 # ---------------------------------------------------------------------------
 _SLA_PATTERNS: list[tuple[str, float]] = [
-    # Most urgent first
     ("in 3 hours",          3.0),
     ("in an hour",          1.0),
     ("within 24 hours",    24.0),
@@ -107,10 +100,6 @@ _SLA_PATTERNS: list[tuple[str, float]] = [
 
 
 def _compute_sla_hours(subject: str, body: str) -> float | None:
-    """
-    Scan email subject + body for time-pressure signals.
-    Returns estimated hours remaining, or None if no deadline detected.
-    """
     text = (subject + " " + body).lower()
     for pattern, hours in _SLA_PATTERNS:
         if pattern in text:
@@ -118,13 +107,23 @@ def _compute_sla_hours(subject: str, body: str) -> float | None:
     return None
 
 
+def _safe_cumulative(scores: list[float]) -> float:
+    """
+    Compute cumulative score. NEVER returns exactly 0.0 or 1.0.
+    Uses _MIN_SCORE (0.01) as fallback for empty list.
+    """
+    if not scores:
+        return _MIN_SCORE
+    raw = sum(scores) / len(scores)
+    return max(_MIN_SCORE, min(0.99, round(raw, 4)))
+
+
 class EmailTriageEnv:
     """
-    OpenEnv-compliant environment for email triage (v3).
-
-    reset(task_id: str) -> Observation
-    step(action: Action) -> (Observation | None, Reward, bool, dict)
-    state() -> EpisodeState
+    OpenEnv-compliant environment for email triage.
+    reset(task_id) -> Observation
+    step(action)   -> (Observation | None, Reward, bool, dict)
+    state()        -> EpisodeState
     """
 
     def __init__(self) -> None:
@@ -164,7 +163,6 @@ class EmailTriageEnv:
 
         valid_ids = {e.email_id for e in self._emails}
 
-        # Compute SLA hours for the current email (if any)
         current_email = self._email_queue[0] if self._email_queue else None
         sla_hours = (
             _compute_sla_hours(current_email.subject, current_email.body)
@@ -196,13 +194,14 @@ class EmailTriageEnv:
         all_processed = len(self._processed_ids) >= len(self._emails)
         over_limit    = self._step_index >= self._max_steps
 
-        cumulative = round(
-            sum(self._cumulative_scores) / len(self._cumulative_scores), 4
-        ) if self._cumulative_scores else 0.01
+        # FIX: use _safe_cumulative — never returns 0.0 or 1.0
+        cumulative = _safe_cumulative(self._cumulative_scores)
 
         if all_processed or over_limit:
             self._done = True
-            obs = self._build_terminal_observation(all_processed=all_processed, over_limit=over_limit)
+            obs = self._build_terminal_observation(
+                all_processed=all_processed, over_limit=over_limit
+            )
             info: dict[str, Any] = {
                 "step": self._step_index,
                 "cumulative_score": cumulative,
@@ -226,10 +225,10 @@ class EmailTriageEnv:
     def state(self) -> EpisodeState:
         if self._task_id is None:
             raise RuntimeError("Environment not initialized. Call reset() first.")
-        cumulative = (
-            round(sum(self._cumulative_scores) / len(self._cumulative_scores), 4)
-            if self._cumulative_scores else 0.01
-        )
+
+        # FIX: use _safe_cumulative — never returns 0.0 or 1.0
+        cumulative = _safe_cumulative(self._cumulative_scores)
+
         return EpisodeState(
             task_id=self._task_id,
             step=self._step_index,
