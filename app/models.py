@@ -1,32 +1,19 @@
 """
-models.py — Final Fixed Version
-ALL numeric fields have explicit non-zero examples.
-breakdown dict uses model_config to set example values.
-penalty field has example=0.05 (not 0).
+models.py  (Fixed)
+------------------
+All Pydantic data models.
+FIXES APPLIED:
+  [Fix #4] ResetResponse now includes session_id as a structured field.
+  [Fix #5] Added ActionFieldSchema + TasksResponse for /tasks endpoint.
+  [Fix #7] Reward step_score and cumulative_score use gt=0.0, lt=1.0
+           so scores are STRICTLY within (0, 1) — never 0.0 or 1.0.
 """
 
 from __future__ import annotations
 
 from enum import Enum
 from typing import Any, Optional
-from pydantic import BaseModel, Field, field_validator
-
-_MIN_SCORE = 0.01
-_MAX_SCORE = 0.99
-
-
-def _clamp(v: Any) -> float:
-    try:
-        f = float(v)
-    except (TypeError, ValueError):
-        return _MIN_SCORE
-    if f != f:
-        return _MIN_SCORE
-    if f <= 0.0:
-        return _MIN_SCORE
-    if f >= 1.0:
-        return _MAX_SCORE
-    return round(f, 4)
+from pydantic import BaseModel, Field
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +54,7 @@ class Difficulty(str, Enum):
 
 
 # ---------------------------------------------------------------------------
-# Email
+# Email data model
 # ---------------------------------------------------------------------------
 
 class Email(BaseModel):
@@ -83,22 +70,18 @@ class Email(BaseModel):
 # ---------------------------------------------------------------------------
 
 class Observation(BaseModel):
-    email_id:    str = Field(..., description="ID of the current email")
+    email_id:    str = Field(..., description="ID of the current email to process")
     subject:     str = Field(..., description="Subject of the current email")
     body:        str = Field(..., description="Body of the current email")
     sender:      str = Field(..., description="Sender of the current email")
     timestamp:   str = Field(..., description="When the email was received")
-    step:        int = Field(..., description="Current step number (0-indexed)", json_schema_extra={"example": 1})
-    total_steps: int = Field(..., description="Total number of emails in this task", json_schema_extra={"example": 3})
+    step:        int = Field(..., description="Current step number (0-indexed)")
+    total_steps: int = Field(..., description="Total number of emails in this task")
     task_id:     str = Field(..., description="ID of the current task")
-    history:     list[dict[str, Any]] = Field(default_factory=list)
-    done:        bool  = Field(default=False)
-    message:     str   = Field(default="")
-    sla_hours_remaining: Optional[float] = Field(
-        default=None,
-        description="Estimated SLA urgency window in hours",
-        json_schema_extra={"example": 24.0},
-    )
+    history:     list[dict[str, Any]] = Field(default_factory=list, description="Previous actions taken this episode")
+    done:              bool          = Field(default=False,  description="True if all emails are processed")
+    message:           str           = Field(default="",     description="Optional message from the environment")
+    sla_hours_remaining: Optional[float] = Field(default=None, description="Estimated SLA urgency window in hours (None = no detected deadline). Derived from body text. Agent should treat <2h as URGENT, <24h as HIGH.")
 
 
 # ---------------------------------------------------------------------------
@@ -110,96 +93,49 @@ class Action(BaseModel):
     category: Category    = Field(..., description="Email category classification")
     priority: Priority    = Field(..., description="Assigned priority level")
     tags:     list[str]   = Field(default_factory=list, description="Topic tags")
-    route_to: RouteTarget = Field(..., description="Which team/folder to route to")
-    notes:    str         = Field(default="", description="Optional reasoning notes")
+    route_to: RouteTarget = Field(..., description="Which team/folder to route the email to")
+    notes:    str         = Field(default="", description="Optional agent reasoning notes")
 
 
 # ---------------------------------------------------------------------------
 # Reward
-# ALL float fields have non-zero examples.
-# breakdown uses model_config json_schema_extra to override the dict example.
+# FIX #7: Use gt/lt (strictly greater/less than) instead of ge/le
+#         so scores are always strictly within (0, 1) — never 0.0 or 1.0.
+#         The graders.py sentinel values (0.01 min, 0.99 max) satisfy this.
 # ---------------------------------------------------------------------------
 
 class Reward(BaseModel):
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "step_score": 0.5,
-                "cumulative_score": 0.5,
-                "penalty": 0.05,
-                "breakdown": {
-                    "category": 0.99,
-                    "priority": 0.49,
-                    "route": 0.99,
-                    "tags": 0.5,
-                },
-                "feedback": "✅ Category correct. ⚠️ Priority close."
-            }
-        }
-    }
-
-    step_score: float = Field(
-        ...,
-        description="Score for this step, strictly in (0, 1)",
-        json_schema_extra={"example": 0.5},
-    )
-    cumulative_score: float = Field(
-        ...,
-        description="Running average score, strictly in (0, 1)",
-        json_schema_extra={"example": 0.5},
-    )
-    penalty: float = Field(
-        default=0.0,
-        description="Penalty applied (deduction amount)",
-        json_schema_extra={"example": 0.05},
-    )
-    breakdown: dict[str, float] = Field(
-        default_factory=dict,
-        description="Per-dimension scores",
-        json_schema_extra={
-            "example": {"category": 0.99, "priority": 0.49, "route": 0.99, "tags": 0.5}
-        },
-    )
-    feedback: str = Field(default="", description="Human-readable feedback")
-
-    @field_validator('step_score', 'cumulative_score', mode='before')
-    @classmethod
-    def clamp_reward_scores(cls, v: Any) -> float:
-        return _clamp(v)
+    step_score:       float            = Field(..., gt=0.0, lt=1.0, description="Score for this single action, strictly in (0, 1)")
+    cumulative_score: float            = Field(..., gt=0.0, lt=1.0, description="Running average score, strictly in (0, 1)")
+    penalty:          float            = Field(default=0.0, ge=0.0, description="Penalty applied")
+    breakdown:        dict[str, float] = Field(default_factory=dict, description="Per-dimension scores")
+    feedback:         str              = Field(default="", description="Human-readable feedback")
 
 
 # ---------------------------------------------------------------------------
-# TaskInfo
+# Task descriptor
 # ---------------------------------------------------------------------------
 
 class TaskInfo(BaseModel):
-    task_id:     str        = Field(..., description="Task identifier")
-    name:        str        = Field(..., description="Human-readable task name")
-    difficulty:  Difficulty = Field(..., description="Task difficulty level")
-    description: str        = Field(..., description="Task description")
-    email_count: int        = Field(..., description="Number of emails", json_schema_extra={"example": 3})
-    max_steps:   int        = Field(..., description="Maximum steps allowed", json_schema_extra={"example": 10})
-    pass_threshold: float   = Field(
-        ...,
-        description="Minimum score to pass",
-        json_schema_extra={"example": 0.75},
-    )
+    task_id:        str
+    name:           str
+    difficulty:     Difficulty
+    description:    str
+    email_count:    int
+    max_steps:      int
+    pass_threshold: float
 
 
 # ---------------------------------------------------------------------------
-# EpisodeState
+# Episode state
 # ---------------------------------------------------------------------------
 
 class EpisodeState(BaseModel):
-    task_id:     str = Field(..., description="Task identifier")
-    step:        int = Field(..., description="Current step", json_schema_extra={"example": 1})
-    total_steps: int = Field(..., description="Total steps", json_schema_extra={"example": 3})
-    done:        bool
-    cumulative_score: float = Field(
-        ...,
-        description="Running average score",
-        json_schema_extra={"example": 0.5},
-    )
+    task_id:          str
+    step:             int
+    total_steps:      int
+    done:             bool
+    cumulative_score: float
     scores_per_step:  list[float]
     actions_taken:    list[dict[str, Any]]
     emails_remaining: list[str]
@@ -207,20 +143,20 @@ class EpisodeState(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Action schema for /tasks
+# FIX #5 — Action schema models for /tasks endpoint
 # ---------------------------------------------------------------------------
 
 class ActionFieldSchema(BaseModel):
-    name:        str
-    type:        str
-    required:    bool
-    values:      Optional[list[str]] = None
-    description: str
+    name:        str            = Field(..., description="Field name in Action")
+    type:        str            = Field(..., description="Data type")
+    required:    bool           = Field(..., description="Whether the field is required")
+    values:      Optional[list[str]] = Field(None, description="Allowed enum values")
+    description: str            = Field(..., description="What this field means")
 
 
 class TasksResponse(BaseModel):
-    tasks:         list[TaskInfo]
-    action_schema: list[ActionFieldSchema]
+    tasks:         list[TaskInfo]         = Field(..., description="All available tasks")
+    action_schema: list[ActionFieldSchema] = Field(..., description="Fields required for a step action")
 
 
 # ---------------------------------------------------------------------------
@@ -228,11 +164,12 @@ class TasksResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ResetRequest(BaseModel):
-    task_id: str = Field(..., description="Which task to start")
+    task_id: str = Field(..., description="Which task to start: easy_triage | medium_triage | hard_triage")
 
 
+# FIX #4 — session_id is now a top-level structured field, not buried in message string
 class ResetResponse(BaseModel):
-    session_id:  str         = Field(..., description="Session ID for subsequent calls")
+    session_id:  str         = Field(..., description="Session ID to use in all subsequent /step and /state calls")
     observation: Observation
     task_info:   TaskInfo
     message:     str         = "Environment reset successfully."
@@ -259,47 +196,21 @@ class GraderRequest(BaseModel):
     actions: list[Action]
 
 
-# ---------------------------------------------------------------------------
-# GraderResponse
-# ---------------------------------------------------------------------------
-
 class GraderResponse(BaseModel):
-    task_id: str = Field(..., description="Task identifier")
-    total_score: float = Field(
-        ...,
-        description="Episode total score, strictly in (0, 1)",
-        json_schema_extra={"example": 0.5},
-    )
-    per_email_scores: list[dict[str, Any]] = Field(
-        ...,
-        description="Per-email grading results",
-        json_schema_extra={
-            "example": [{"email_id": "easy_001", "step_score": 0.5, "breakdown": {}, "feedback": ""}]
-        },
-    )
-    passed:   bool
-    feedback: str
-
-    @field_validator('total_score', mode='before')
-    @classmethod
-    def clamp_total_score(cls, v: Any) -> float:
-        return _clamp(v)
+    task_id:          str
+    total_score:      float
+    per_email_scores: list[dict[str, Any]]
+    passed:           bool
+    feedback:         str
 
 
 class BaselineRequest(BaseModel):
     task_ids: list[str] = Field(
         default=["easy_triage", "medium_triage", "hard_triage"],
-        description="Tasks to run baseline on",
+        description="Tasks to run baseline on"
     )
 
 
 class BaselineResponse(BaseModel):
     results: list[dict[str, Any]]
     summary: dict[str, float]
-
-    @field_validator('summary', mode='before')
-    @classmethod
-    def clamp_summary(cls, v: Any) -> dict:
-        if isinstance(v, dict):
-            return {k: _clamp(val) for k, val in v.items()}
-        return v
