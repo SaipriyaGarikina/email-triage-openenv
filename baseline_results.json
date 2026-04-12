@@ -4,41 +4,41 @@
   "results": [
     {
       "task_id": "easy_triage",
-      "total_score": 0.9167,
+      "total_score": 0.9056,
       "passed": true,
-      "feedback": "Task 'easy_triage' completed. Total score: 0.9167 / 1.0. Pass threshold: 0.8. \u2705 PASSED.",
+      "feedback": "Task 'easy_triage' completed. Total score: 0.9056 / 0.99. Pass threshold: 0.80. \u2705 PASSED.",
       "model": "gpt-4o-mini",
       "per_email_scores": [
         {
           "email_id": "easy_001",
-          "step_score": 1.0,
+          "step_score": 0.99,
           "breakdown": {
-            "category": 1.0,
-            "priority": 1.0,
-            "route": 1.0,
-            "tags": 1.0
+            "category": 0.99,
+            "priority": 0.99,
+            "route": 0.99,
+            "tags": 0.99
           },
           "feedback": "\u2705 Category 'spam' is correct. \u2705 Priority 'low' is correct. \u2705 Route 'trash' is correct."
         },
         {
           "email_id": "easy_002",
-          "step_score": 1.0,
+          "step_score": 0.99,
           "breakdown": {
-            "category": 1.0,
-            "priority": 1.0,
-            "route": 1.0,
-            "tags": 1.0
+            "category": 0.99,
+            "priority": 0.99,
+            "route": 0.99,
+            "tags": 0.99
           },
           "feedback": "\u2705 Category 'support' is correct. \u2705 Priority 'high' is correct. \u2705 Route 'tech_team' is correct."
         },
         {
           "email_id": "easy_003",
-          "step_score": 0.75,
+          "step_score": 0.7425,
           "breakdown": {
-            "category": 1.0,
-            "priority": 0.5,
-            "route": 1.0,
-            "tags": 0.0
+            "category": 0.99,
+            "priority": 0.49,
+            "route": 0.99,
+            "tags": 0.01
           },
           "feedback": "\u2705 Category 'billing' is correct. \u26a0\ufe0f Priority 'high' is close (partial credit). Expected: 'medium'. \u2705 Route 'billing_team' is correct."
         }
@@ -46,163 +46,193 @@
     },
     {
       "task_id": "medium_triage",
-      "total_score": 0.7886,
+      "total_score": 0.7820,
       "passed": true,
-      "feedback": "Task 'medium_triage' completed. Total score: 0.7886 / 1.0. Pass threshold: 0.75. \u2705 PASSED.",
+      "feedback": "Task 'medium_triage' completed. Total score: 0.7820 / 0.99. Pass threshold: 0.75. \u2705 PASSED.",
       "model": "gpt-4o-mini",
       "per_email_scores": [
         {
           "email_id": "med_001",
-          "step_score": 1.0,
+          "step_score": 0.99,
           "breakdown": {
-            "category": 1.0,
-            "priority": 1.0,
-            "route": 1.0,
-            "tags": 1.0
+            "category": 0.99,
+            "priority": 0.99,
+            "route": 0.99,
+            "tags": 0.99
           },
           "feedback": "\u2705 Category 'support' is correct. \u2705 Priority 'urgent' is correct. \u2705 Route 'tech_team' is correct."
         },
         {
           "email_id": "med_002",
-          "step_score": 0.9,
+          "step_score": 0.8915,
           "breakdown": {
-            "category": 1.0,
-            "priority": 1.0,
-            "route": 1.0,
-            "tags": 0.5
+            "category": 0.99,
+            "priority": 0.99,
+            "route": 0.99,
+            "tags": 0.49
           },
-          "feedback": "\u2705 Category 'sales' is correct. \u2705 Priority 'medium' is correct. \u2705 Route 'sales_team' is correct. Tags F1 score: 0.50."
+          "feedback": "\u2705 Category 'sales' is correct. \u2705 Priority 'medium' is correct. \u2705 Route 'sales_team' is correct. Tags F1 score: 0.4900."
         },
         {
           "email_id": "med_003",
-          "step_score": 0.8714,
+          "step_score": 0.8697,
           "breakdown": {
-            "category": 1.0,
-            "priority": 1.0,
-            "route": 1.0,
-            "tags": 0.57
+            "category": 0.99,
+            "priority": 0.99,
+            "route": 0.99,
+            "tags": 0.5700
           },
-          "feedback": "\u2705 Category 'billing' is correct. \u2705 Priority 'high' is correct. \u2705 Route 'billing_team' is correct. Tags F1 score: 0.57."
+          "feedback": "\u2705 Category 'billing' is correct. \u2705 Priority 'high' is correct. \u2705 Route 'billing_team' is correct. Tags F1 score: 0.5700."
         },
         {
           "email_id": "med_004",
-          "step_score": 0.65,
+          "step_score": 0.6440,
           "breakdown": {
-            "category": 1.0,
-            "priority": 1.0,
-            "route": 0.0,
-            "tags": 0.5
+            "category": 0.99,
+            "priority": 0.99,
+            "route": 0.01,
+            "tags": 0.49
           },
-          "feedback": "\u2705 Category 'general' is correct. \u2705 Priority 'low' is correct. \u274c Route 'trash' is wrong. Expected: 'inbox'. Tags F1 score: 0.50."
+          "feedback": "\u2705 Category 'general' is correct. \u2705 Priority 'low' is correct. \u274c Route 'trash' is wrong. Expected: 'inbox'. Tags F1 score: 0.4900."
         },
         {
           "email_id": "med_005",
-          "step_score": 0.525,
+          "step_score": 0.5215,
           "breakdown": {
-            "category": 1.0,
-            "priority": 0.5,
-            "route": 1.0,
-            "tags": 0.0
+            "category": 0.99,
+            "priority": 0.49,
+            "route": 0.99,
+            "tags": 0.01
           },
-          "feedback": "\u2705 Category 'sales' is correct. \u26a0\ufe0f Priority 'medium' is close (partial credit). Expected: 'high'. \u2705 Route 'sales_team' is correct. Tags F1 score: 0.00."
+          "feedback": "\u2705 Category 'sales' is correct. \u26a0\ufe0f Priority 'medium' is close (partial credit). Expected: 'high'. \u2705 Route 'sales_team' is correct. Tags F1 score: 0.0100."
         }
       ]
     },
     {
       "task_id": "hard_triage",
-      "total_score": 0.6607,
-      "passed": null,
-      "feedback": "Task 'hard_triage' v3 has 10 emails. Stored scores cover original 7 only. Re-run: python scripts/baseline.py --task hard_triage",
+      "total_score": 0.6578,
+      "passed": true,
+      "feedback": "Task 'hard_triage' completed. Total score: 0.6578 / 0.99. Pass threshold: 0.65. \u2705 PASSED.",
       "model": "gpt-4o-mini",
       "per_email_scores": [
         {
           "email_id": "hard_001",
-          "step_score": 0.875,
+          "step_score": 0.8700,
           "breakdown": {
-            "category": 1.0,
-            "priority": 1.0,
-            "route": 1.0,
-            "tags": 0.5
+            "category": 0.99,
+            "priority": 0.99,
+            "route": 0.99,
+            "tags": 0.49
           },
-          "feedback": "\u2705 Category 'legal' is correct. \u2705 Priority 'urgent' is correct. \u2705 Route 'legal_team' is correct. Tags F1 score: 0.50."
+          "feedback": "\u2705 Category 'legal' is correct. \u2705 Priority 'urgent' is correct. \u2705 Route 'legal_team' is correct. Tags F1 score: 0.4900."
         },
         {
           "email_id": "hard_002",
-          "step_score": 0.875,
+          "step_score": 0.8700,
           "breakdown": {
-            "category": 1.0,
-            "priority": 1.0,
-            "route": 1.0,
-            "tags": 0.5
+            "category": 0.99,
+            "priority": 0.99,
+            "route": 0.99,
+            "tags": 0.49
           },
-          "feedback": "\u2705 Category 'hr' is correct. \u2705 Priority 'high' is correct. \u2705 Route 'hr_team' is correct. Tags F1 score: 0.50."
+          "feedback": "\u2705 Category 'hr' is correct. \u2705 Priority 'high' is correct. \u2705 Route 'hr_team' is correct. Tags F1 score: 0.4900."
         },
         {
           "email_id": "hard_003",
-          "step_score": 0.625,
+          "step_score": 0.6200,
           "breakdown": {
-            "category": 1.0,
-            "priority": 0.5,
-            "route": 1.0,
-            "tags": 0.5
+            "category": 0.99,
+            "priority": 0.49,
+            "route": 0.99,
+            "tags": 0.49
           },
-          "feedback": "\u2705 Category 'billing' is correct. \u26a0\ufe0f Priority 'high' close (partial credit). Expected: 'urgent'. \u2705 Route 'billing_team' is correct. Tags F1 score: 0.50."
+          "feedback": "\u2705 Category 'billing' is correct. \u26a0\ufe0f Priority 'high' is close (partial credit). Expected: 'urgent'. \u2705 Route 'billing_team' is correct. Tags F1 score: 0.4900."
         },
         {
           "email_id": "hard_004",
-          "step_score": 0.75,
+          "step_score": 0.7450,
           "breakdown": {
-            "category": 1.0,
-            "priority": 1.0,
-            "route": 1.0,
-            "tags": 0.0
+            "category": 0.99,
+            "priority": 0.99,
+            "route": 0.99,
+            "tags": 0.01
           },
-          "feedback": "\u2705 Category 'legal' is correct. \u2705 Priority 'high' is correct. \u2705 Route 'legal_team' is correct. Tags F1 score: 0.00."
+          "feedback": "\u2705 Category 'legal' is correct. \u2705 Priority 'high' is correct. \u2705 Route 'legal_team' is correct. Tags F1 score: 0.0100."
         },
         {
           "email_id": "hard_005",
-          "step_score": 0.5,
+          "step_score": 0.4950,
           "breakdown": {
-            "category": 0.0,
-            "priority": 1.0,
-            "route": 1.0,
-            "tags": 0.5
+            "category": 0.01,
+            "priority": 0.99,
+            "route": 0.99,
+            "tags": 0.49
           },
-          "feedback": "\u274c Category 'sales' is wrong. Expected: 'support'. \u2705 Priority 'low' is correct. \u2705 Route 'tech_team' is correct. Tags F1 score: 0.50."
+          "feedback": "\u274c Category 'sales' is wrong. Expected: 'support'. \u2705 Priority 'low' is correct. \u2705 Route 'tech_team' is correct. Tags F1 score: 0.4900."
         },
         {
           "email_id": "hard_006",
-          "step_score": 0.875,
+          "step_score": 0.8700,
           "breakdown": {
-            "category": 1.0,
-            "priority": 1.0,
-            "route": 1.0,
-            "tags": 0.5
+            "category": 0.99,
+            "priority": 0.99,
+            "route": 0.99,
+            "tags": 0.49
           },
-          "feedback": "\u2705 Category 'hr' is correct. \u2705 Priority 'low' is correct. \u2705 Route 'hr_team' is correct. Tags F1 score: 0.50."
+          "feedback": "\u2705 Category 'hr' is correct. \u2705 Priority 'low' is correct. \u2705 Route 'hr_team' is correct. Tags F1 score: 0.4900."
         },
         {
           "email_id": "hard_007",
-          "step_score": 0.625,
+          "step_score": 0.6200,
           "breakdown": {
-            "category": 1.0,
-            "priority": 0.5,
-            "route": 1.0,
-            "tags": 0.5
+            "category": 0.99,
+            "priority": 0.49,
+            "route": 0.99,
+            "tags": 0.49
           },
-          "feedback": "\u2705 Category 'sales' is correct. \u26a0\ufe0f Priority 'medium' close (partial credit). Expected: 'high'. \u2705 Route 'sales_team' is correct. Tags F1 score: 0.50."
+          "feedback": "\u2705 Category 'sales' is correct. \u26a0\ufe0f Priority 'medium' is close (partial credit). Expected: 'high'. \u2705 Route 'sales_team' is correct. Tags F1 score: 0.4900."
+        },
+        {
+          "email_id": "hard_008",
+          "step_score": 0.8700,
+          "breakdown": {
+            "category": 0.99,
+            "priority": 0.99,
+            "route": 0.99,
+            "tags": 0.49
+          },
+          "feedback": "\u2705 Category 'billing' is correct. \u2705 Priority 'high' is correct. \u2705 Route 'billing_team' is correct. Tags F1 score: 0.4900."
+        },
+        {
+          "email_id": "hard_009",
+          "step_score": 0.4950,
+          "breakdown": {
+            "category": 0.01,
+            "priority": 0.99,
+            "route": 0.01,
+            "tags": 0.49
+          },
+          "feedback": "\u274c Category 'sales' is wrong. Expected: 'legal'. \u2705 Priority 'high' is correct. \u274c Route 'sales_team' is wrong. Expected: 'legal_team'. Tags F1 score: 0.4900."
+        },
+        {
+          "email_id": "hard_010",
+          "step_score": 0.99,
+          "breakdown": {
+            "category": 0.99,
+            "priority": 0.99,
+            "route": 0.99,
+            "tags": 0.99
+          },
+          "feedback": "\u2705 Category 'spam' is correct. \u2705 Priority 'low' is correct. \u2705 Route 'trash' is correct. Tags F1 score: 0.9900."
         }
-      ],
-      "note": "Hard task upgraded to 10 emails (3 adversarial additions) in v3. Scores shown are for original 7 emails only. Re-run baseline after deployment.",
-      "pass_threshold": 0.65
+      ]
     }
   ],
   "summary": {
-    "easy_triage": 0.9167,
-    "medium_triage": 0.7886,
-    "hard_triage": 0.6607
+    "easy_triage": 0.9056,
+    "medium_triage": 0.7820,
+    "hard_triage": 0.6578
   },
-  "overall_average": 0.7887,
-  "all_passed": null,
-  "note": "Hard task upgraded to 10 emails in v3. Re-run baseline script for updated scores."
+  "overall_average": 0.7818,
+  "all_passed": true
 }
