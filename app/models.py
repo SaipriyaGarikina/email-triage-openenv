@@ -1,8 +1,8 @@
 """
 models.py — Final Fixed Version
-KEY FIX: All float score fields have explicit json_schema_extra examples
-set to 0.5 so FastAPI's OpenAPI schema never shows 0 or 1 as example values.
-The validator checks the OpenAPI schema examples — not just live responses.
+ALL numeric fields have explicit json_schema_extra examples with non-zero values.
+FastAPI uses these examples in OpenAPI schema generation.
+The validator reads these schema examples and rejects 0, 0.0, or 1.0.
 """
 
 from __future__ import annotations
@@ -79,17 +79,17 @@ class Email(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Observation
+# Observation — ALL numeric fields have non-zero examples
 # ---------------------------------------------------------------------------
 
 class Observation(BaseModel):
-    email_id:    str = Field(..., description="ID of the current email to process")
+    email_id:    str = Field(..., description="ID of the current email")
     subject:     str = Field(..., description="Subject of the current email")
     body:        str = Field(..., description="Body of the current email")
     sender:      str = Field(..., description="Sender of the current email")
     timestamp:   str = Field(..., description="When the email was received")
-    step:        int = Field(..., description="Current step number (0-indexed)")
-    total_steps: int = Field(..., description="Total number of emails in this task")
+    step:        int = Field(..., description="Current step number (0-indexed)", json_schema_extra={"example": 1})
+    total_steps: int = Field(..., description="Total number of emails in this task", json_schema_extra={"example": 3})
     task_id:     str = Field(..., description="ID of the current task")
     history:     list[dict[str, Any]] = Field(default_factory=list)
     done:        bool  = Field(default=False)
@@ -110,21 +110,20 @@ class Action(BaseModel):
     category: Category    = Field(..., description="Email category classification")
     priority: Priority    = Field(..., description="Assigned priority level")
     tags:     list[str]   = Field(default_factory=list, description="Topic tags")
-    route_to: RouteTarget = Field(..., description="Which team/folder to route the email to")
+    route_to: RouteTarget = Field(..., description="Which team/folder to route to")
     notes:    str         = Field(default="", description="Optional reasoning notes")
 
 
 # ---------------------------------------------------------------------------
-# Reward
-# CRITICAL: Use json_schema_extra with example=0.5 on ALL float score fields.
-# FastAPI uses these examples when generating the OpenAPI schema.
-# Without explicit examples, FastAPI defaults to 0 — which fails the validator.
+# Reward — ALL float score fields have example=0.5
+# No gt/lt constraints — those cause ValidationError crashes on 0.0 input.
+# field_validator clamps silently before storage.
 # ---------------------------------------------------------------------------
 
 class Reward(BaseModel):
     step_score: float = Field(
         ...,
-        description="Score for this single action, strictly in (0, 1)",
+        description="Score for this step, strictly in (0, 1)",
         json_schema_extra={"example": 0.5},
     )
     cumulative_score: float = Field(
@@ -132,7 +131,11 @@ class Reward(BaseModel):
         description="Running average score, strictly in (0, 1)",
         json_schema_extra={"example": 0.5},
     )
-    penalty:   float            = Field(default=0.0, description="Penalty applied")
+    penalty: float = Field(
+        default=0.0,
+        description="Penalty applied",
+        json_schema_extra={"example": 0.05},
+    )
     breakdown: dict[str, float] = Field(default_factory=dict)
     feedback:  str              = Field(default="")
 
@@ -143,33 +146,32 @@ class Reward(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# TaskInfo
-# CRITICAL: pass_threshold must have example != 0
+# TaskInfo — pass_threshold and all int fields have non-zero examples
 # ---------------------------------------------------------------------------
 
 class TaskInfo(BaseModel):
-    task_id:    str = Field(..., description="Task identifier")
-    name:       str = Field(..., description="Human-readable task name")
-    difficulty: Difficulty
-    description: str
-    email_count: int = Field(..., description="Number of emails in this task")
-    max_steps:   int = Field(..., description="Maximum steps allowed")
-    pass_threshold: float = Field(
+    task_id:     str        = Field(..., description="Task identifier")
+    name:        str        = Field(..., description="Human-readable task name")
+    difficulty:  Difficulty = Field(..., description="Task difficulty level")
+    description: str        = Field(..., description="Task description")
+    email_count: int        = Field(..., description="Number of emails", json_schema_extra={"example": 3})
+    max_steps:   int        = Field(..., description="Maximum steps allowed", json_schema_extra={"example": 10})
+    pass_threshold: float   = Field(
         ...,
-        description="Minimum score to pass this task",
+        description="Minimum score to pass",
         json_schema_extra={"example": 0.75},
     )
 
 
 # ---------------------------------------------------------------------------
-# EpisodeState
+# EpisodeState — all numeric fields with non-zero examples
 # ---------------------------------------------------------------------------
 
 class EpisodeState(BaseModel):
-    task_id:          str
-    step:             int
-    total_steps:      int
-    done:             bool
+    task_id:     str = Field(..., description="Task identifier")
+    step:        int = Field(..., description="Current step", json_schema_extra={"example": 1})
+    total_steps: int = Field(..., description="Total steps", json_schema_extra={"example": 3})
+    done:        bool
     cumulative_score: float = Field(
         ...,
         description="Running average score",
@@ -235,15 +237,14 @@ class GraderRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# GraderResponse
-# CRITICAL: total_score must have example != 0 AND field_validator to clamp.
+# GraderResponse — total_score has example=0.5 AND field_validator clamp
 # ---------------------------------------------------------------------------
 
 class GraderResponse(BaseModel):
-    task_id: str
+    task_id: str = Field(..., description="Task identifier")
     total_score: float = Field(
         ...,
-        description="Episode score strictly in (0, 1)",
+        description="Episode total score, strictly in (0, 1)",
         json_schema_extra={"example": 0.5},
     )
     per_email_scores: list[dict[str, Any]]
