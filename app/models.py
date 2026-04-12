@@ -1,14 +1,8 @@
 """
-models.py  (Fixed - strict score bounds)
-------------------
-All Pydantic data models.
-FIXES:
-  [Fix #4] ResetResponse includes session_id as structured field.
-  [Fix #5] ActionFieldSchema + TasksResponse for /tasks endpoint.
-  [Fix #7] Reward scores use gt=0.0, lt=1.0 (strictly within (0,1)).
-  [Fix #FINAL] GraderResponse.total_score + BaselineResponse scores
-               have field_validator to FORCE clamp to (0.01, 0.99)
-               so it is physically impossible to return 0.0 or 1.0.
+models.py — Final Fixed Version
+All score fields clamped strictly within (0.01, 0.99).
+NO gt/lt constraints on Reward — those cause ValidationError crashes on 0.0 input.
+Instead: field_validator with mode='before' clamps at input silently.
 """
 
 from __future__ import annotations
@@ -17,24 +11,23 @@ from enum import Enum
 from typing import Any, Optional
 from pydantic import BaseModel, Field, field_validator
 
-
-# ---------------------------------------------------------------------------
-# Sentinel values — used by all validators
-# ---------------------------------------------------------------------------
 _MIN_SCORE = 0.01
 _MAX_SCORE = 0.99
 
 
-def _clamp_score(v: float) -> float:
-    """Force any float strictly inside (0, 1). Never 0.0 or 1.0."""
-    if v is None:
+def _clamp(v: Any) -> float:
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
         return _MIN_SCORE
-    return max(_MIN_SCORE, min(_MAX_SCORE, float(v)))
+    if f != f:          # NaN check
+        return _MIN_SCORE
+    if f <= 0.0:
+        return _MIN_SCORE
+    if f >= 1.0:
+        return _MAX_SCORE
+    return round(f, 4)
 
-
-# ---------------------------------------------------------------------------
-# Enumerations
-# ---------------------------------------------------------------------------
 
 class Category(str, Enum):
     SPAM    = "spam"
@@ -69,70 +62,55 @@ class Difficulty(str, Enum):
     HARD   = "hard"
 
 
-# ---------------------------------------------------------------------------
-# Email data model
-# ---------------------------------------------------------------------------
-
 class Email(BaseModel):
-    email_id:  str = Field(..., description="Unique identifier for the email")
-    subject:   str = Field(..., description="Subject line of the email")
-    body:      str = Field(..., description="Full body text of the email")
-    sender:    str = Field(..., description="Sender email address")
-    timestamp: str = Field(..., description="ISO-format timestamp")
+    email_id:  str
+    subject:   str
+    body:      str
+    sender:    str
+    timestamp: str
 
-
-# ---------------------------------------------------------------------------
-# Observation
-# ---------------------------------------------------------------------------
 
 class Observation(BaseModel):
-    email_id:    str = Field(..., description="ID of the current email to process")
-    subject:     str = Field(..., description="Subject of the current email")
-    body:        str = Field(..., description="Body of the current email")
-    sender:      str = Field(..., description="Sender of the current email")
-    timestamp:   str = Field(..., description="When the email was received")
-    step:        int = Field(..., description="Current step number (0-indexed)")
-    total_steps: int = Field(..., description="Total number of emails in this task")
-    task_id:     str = Field(..., description="ID of the current task")
-    history:     list[dict[str, Any]] = Field(default_factory=list, description="Previous actions taken this episode")
-    done:              bool          = Field(default=False,  description="True if all emails are processed")
-    message:           str           = Field(default="",     description="Optional message from the environment")
-    sla_hours_remaining: Optional[float] = Field(default=None, description="Estimated SLA urgency window in hours")
+    email_id:            str
+    subject:             str
+    body:                str
+    sender:              str
+    timestamp:           str
+    step:                int
+    total_steps:         int
+    task_id:             str
+    history:             list[dict[str, Any]] = Field(default_factory=list)
+    done:                bool                 = False
+    message:             str                  = ""
+    sla_hours_remaining: Optional[float]      = None
 
-
-# ---------------------------------------------------------------------------
-# Action
-# ---------------------------------------------------------------------------
 
 class Action(BaseModel):
-    email_id: str         = Field(..., description="ID of the email being acted upon")
-    category: Category    = Field(..., description="Email category classification")
-    priority: Priority    = Field(..., description="Assigned priority level")
-    tags:     list[str]   = Field(default_factory=list, description="Topic tags")
-    route_to: RouteTarget = Field(..., description="Which team/folder to route the email to")
-    notes:    str         = Field(default="", description="Optional agent reasoning notes")
+    email_id: str
+    category: Category
+    priority: Priority
+    tags:     list[str]   = Field(default_factory=list)
+    route_to: RouteTarget
+    notes:    str         = ""
 
-
-# ---------------------------------------------------------------------------
-# Reward — strictly within (0, 1)
-# ---------------------------------------------------------------------------
 
 class Reward(BaseModel):
-    step_score:       float            = Field(..., gt=0.0, lt=1.0, description="Score for this single action, strictly in (0, 1)")
-    cumulative_score: float            = Field(..., gt=0.0, lt=1.0, description="Running average score, strictly in (0, 1)")
-    penalty:          float            = Field(default=0.0, ge=0.0, description="Penalty applied")
-    breakdown:        dict[str, float] = Field(default_factory=dict, description="Per-dimension scores")
-    feedback:         str              = Field(default="", description="Human-readable feedback")
+    """
+    IMPORTANT: No gt/lt constraints — those raise ValidationError on 0.0 input
+    and crash inference.py. Instead, field_validator clamps silently before
+    Pydantic stores the value. All scores strictly in (0.01, 0.99).
+    """
+    step_score:       float            = Field(..., description="Score strictly in (0,1)")
+    cumulative_score: float            = Field(..., description="Running avg strictly in (0,1)")
+    penalty:          float            = Field(default=0.0)
+    breakdown:        dict[str, float] = Field(default_factory=dict)
+    feedback:         str              = ""
 
     @field_validator('step_score', 'cumulative_score', mode='before')
     @classmethod
     def clamp_reward_scores(cls, v: Any) -> float:
-        return _clamp_score(float(v))
+        return _clamp(v)
 
-
-# ---------------------------------------------------------------------------
-# Task descriptor
-# ---------------------------------------------------------------------------
 
 class TaskInfo(BaseModel):
     task_id:        str
@@ -143,10 +121,6 @@ class TaskInfo(BaseModel):
     max_steps:      int
     pass_threshold: float
 
-
-# ---------------------------------------------------------------------------
-# Episode state
-# ---------------------------------------------------------------------------
 
 class EpisodeState(BaseModel):
     task_id:          str
@@ -160,36 +134,28 @@ class EpisodeState(BaseModel):
     emails_processed: list[str]
 
 
-# ---------------------------------------------------------------------------
-# Action schema models for /tasks endpoint
-# ---------------------------------------------------------------------------
-
 class ActionFieldSchema(BaseModel):
-    name:        str            = Field(..., description="Field name in Action")
-    type:        str            = Field(..., description="Data type")
-    required:    bool           = Field(..., description="Whether the field is required")
-    values:      Optional[list[str]] = Field(None, description="Allowed enum values")
-    description: str            = Field(..., description="What this field means")
+    name:        str
+    type:        str
+    required:    bool
+    values:      Optional[list[str]] = None
+    description: str
 
 
 class TasksResponse(BaseModel):
-    tasks:         list[TaskInfo]          = Field(..., description="All available tasks")
-    action_schema: list[ActionFieldSchema] = Field(..., description="Fields required for a step action")
+    tasks:         list[TaskInfo]
+    action_schema: list[ActionFieldSchema]
 
-
-# ---------------------------------------------------------------------------
-# API request / response wrappers
-# ---------------------------------------------------------------------------
 
 class ResetRequest(BaseModel):
-    task_id: str = Field(..., description="Which task to start")
+    task_id: str
 
 
 class ResetResponse(BaseModel):
-    session_id:  str         = Field(..., description="Session ID for all subsequent calls")
+    session_id:  str
     observation: Observation
     task_info:   TaskInfo
-    message:     str         = "Environment reset successfully."
+    message:     str = "Environment reset successfully."
 
 
 class StepRequest(BaseModel):
@@ -223,19 +189,11 @@ class GraderResponse(BaseModel):
     @field_validator('total_score', mode='before')
     @classmethod
     def clamp_total_score(cls, v: Any) -> float:
-        """
-        CRITICAL FIX: Force total_score strictly inside (0, 1).
-        Validator checks this field in the HTTP response JSON.
-        0.0 and 1.0 are both REJECTED by the validator — use sentinels.
-        """
-        return _clamp_score(float(v))
+        return _clamp(v)
 
 
 class BaselineRequest(BaseModel):
-    task_ids: list[str] = Field(
-        default=["easy_triage", "medium_triage", "hard_triage"],
-        description="Tasks to run baseline on"
-    )
+    task_ids: list[str] = Field(default=["easy_triage", "medium_triage", "hard_triage"])
 
 
 class BaselineResponse(BaseModel):
@@ -245,7 +203,6 @@ class BaselineResponse(BaseModel):
     @field_validator('summary', mode='before')
     @classmethod
     def clamp_summary_scores(cls, v: Any) -> dict:
-        """Clamp all summary scores strictly inside (0, 1)."""
         if isinstance(v, dict):
-            return {k: _clamp_score(float(val)) for k, val in v.items()}
+            return {k: _clamp(val) for k, val in v.items()}
         return v
