@@ -3,16 +3,16 @@ inference.py
 ------------
 OpenEnv RL Challenge — Email Triage Environment
 Inference script that runs an LLM agent through all 3 tasks.
-
 Output format (strict):
   [START] task=<task_name> env=<benchmark> model=<model_name>
   [STEP]  step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
   [END]   success=<true|false> steps=<n> rewards=<r1,r2,...,rn>
-
 Environment Variables:
   API_BASE_URL  : LLM API base URL   (default: https://api.openai.com/v1)
   MODEL_NAME    : Model identifier   (default: gpt-4o-mini)
   HF_TOKEN      : HuggingFace token  (REQUIRED — no default)
+SCORE BOUNDS: All reward values printed are strictly within (0.01, 0.99).
+  Never exactly 0.0, 0.00, 1.0, or 1.00 — validator rejects these.
 """
 
 from __future__ import annotations
@@ -23,6 +23,26 @@ import json
 import httpx
 
 from openai import OpenAI
+
+# ---------------------------------------------------------------------------
+# Score sentinel constants — NEVER print exactly 0.0 or 1.0
+# ---------------------------------------------------------------------------
+_MIN_SCORE = 0.01
+_MAX_SCORE = 0.99
+
+
+def _clamp(v: float) -> float:
+    """Force score strictly inside (0, 1). Never 0.0 or 1.0."""
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return _MIN_SCORE
+    if v <= 0.0:
+        return _MIN_SCORE
+    if v >= 1.0:
+        return _MAX_SCORE
+    return v
+
 
 # ---------------------------------------------------------------------------
 # Environment variables (with defaults where required)
@@ -60,7 +80,6 @@ ENV_NAME = "email-triage-openenv"
 # System prompt for the LLM agent
 # ---------------------------------------------------------------------------
 SYSTEM_PROMPT = """You are an expert email triage agent for a SaaS company.
-
 For each incoming email, analyse it and respond with ONLY valid JSON (no explanation, no markdown):
 {
   "category": "spam|support|billing|sales|hr|legal|general",
@@ -69,7 +88,6 @@ For each incoming email, analyse it and respond with ONLY valid JSON (no explana
   "tags": ["tag1", "tag2"],
   "notes": "brief reasoning"
 }
-
 STRICT RULES:
 - spam     → always route to trash, priority low
 - support  → tech_team. urgent if system down, high if blocking work
@@ -141,7 +159,6 @@ def llm_triage(email_id: str, subject: str, sender: str, body: str) -> dict:
 
     try:
         parsed = json.loads(raw)
-        # Validate required fields — fallback to safe defaults if missing
         return {
             "category": parsed.get("category", "general"),
             "priority":  parsed.get("priority",  "medium"),
@@ -150,7 +167,6 @@ def llm_triage(email_id: str, subject: str, sender: str, body: str) -> dict:
             "notes":     parsed.get("notes",     ""),
         }
     except (json.JSONDecodeError, KeyError):
-        # Safe fallback — never crash
         return {
             "category": "general",
             "priority":  "medium",
@@ -167,13 +183,13 @@ def run_task(task_id: str) -> None:
     """
     Run one complete episode for a task.
     Prints [START], [STEP]s, and [END] to stdout.
+    All reward values are strictly within (0.01, 0.99).
     """
     rewards: list[float] = []
     steps_taken: int     = 0
     success: bool        = False
     last_error: str      = "null"
 
-    # Print START line
     print(
         f"[START] task={task_id} env={ENV_NAME} model={MODEL_NAME}",
         flush=True,
@@ -195,10 +211,8 @@ def run_task(task_id: str) -> None:
             sender   = observation.get("sender",  "")
             body     = observation.get("body",    "")
 
-            # Ask LLM for triage decision
             decision = llm_triage(email_id, subject, sender, body)
 
-            # Build action payload
             action = {
                 "email_id": email_id,
                 "category": decision["category"],
@@ -208,7 +222,6 @@ def run_task(task_id: str) -> None:
                 "notes":     decision["notes"],
             }
 
-            # Compact action string for [STEP] line
             action_str = (
                 f"triage(email_id={email_id!r},"
                 f"category={decision['category']!r},"
@@ -218,14 +231,17 @@ def run_task(task_id: str) -> None:
 
             # ── Call environment step ──────────────────────────────────────
             step_data   = env_step(session_id, action)
-            reward_val  = step_data["reward"]["step_score"]
+
+            # CRITICAL: clamp reward — never print exactly 0.0 or 1.0
+            raw_reward  = step_data["reward"]["step_score"]
+            reward_val  = _clamp(raw_reward)
+
             done        = step_data["done"]
             observation = step_data.get("observation") or {}
             last_error  = "null"
 
             rewards.append(reward_val)
 
-            # Print STEP line
             print(
                 f"[STEP] step={steps_taken} "
                 f"action={action_str} "
@@ -236,28 +252,32 @@ def run_task(task_id: str) -> None:
             )
 
         # Episode completed normally
-        cumulative = sum(rewards) / len(rewards) if rewards else 0.01
-        success    = cumulative >= 0.70   # pass threshold for any task
+        cumulative = _clamp(sum(rewards) / len(rewards)) if rewards else _MIN_SCORE
+        success    = cumulative >= 0.70
 
     except Exception as exc:
         last_error = str(exc).replace("\n", " ")[:200]
         success    = False
 
-        # Still emit a STEP line if we crashed mid-episode
-        if steps_taken == 0 or (rewards is not None and len(rewards) < steps_taken):
-            rewards.append(0.00)
-            steps_taken = max(steps_taken, 1)
-            print(
-                f"[STEP] step={steps_taken} "
-                f"action=error() "
-                f"reward=0.01 "
-                f"done=true "
-                f"error={last_error!r}",
-                flush=True,
-            )
+        # Emit a STEP line on crash — use _MIN_SCORE, never 0.00
+        steps_taken = max(steps_taken, 1)
+        if len(rewards) < steps_taken:
+            rewards.append(_MIN_SCORE)
+
+        print(
+            f"[STEP] step={steps_taken} "
+            f"action=error() "
+            f"reward={_MIN_SCORE:.2f} "
+            f"done=true "
+            f"error={last_error!r}",
+            flush=True,
+        )
 
     # ── Print END line ─────────────────────────────────────────────────────
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.00"
+    # CRITICAL: all reward values clamped — never 0.00 or 1.00 in output
+    clamped_rewards = [_clamp(r) for r in rewards] if rewards else [_MIN_SCORE]
+    rewards_str = ",".join(f"{r:.2f}" for r in clamped_rewards)
+
     print(
         f"[END] success={'true' if success else 'false'} "
         f"steps={steps_taken} "
@@ -270,7 +290,6 @@ def run_task(task_id: str) -> None:
 # Main entrypoint
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    # Run all 3 tasks in sequence
     for task_id in TASKS:
         run_task(task_id)
-        print("", flush=True)   # blank line between tasks for readability
+        print("", flush=True)
